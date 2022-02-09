@@ -14,14 +14,31 @@ public class BasicMovement : MonoBehaviour
         Collider = GetComponent<BoxCollider2D>();
     }
 
+    void FixedUpdate() {
+        var axisInput = Input.GetAxisRaw("Horizontal");
+
+        Movement.StartFixedUpdate(Rigidbody.velocity, Collider.bounds.center, Collider.bounds.size); 
+        {
+            Movement.Move(axisInput);
+        }
+        Movement.EndFixedUpdate();
+
+        Rigidbody.velocity = Movement.Velocity;
+    }
+
     void Update()
     {
-        Movement.Position = Collider.bounds.center;
-        Movement.Size = Collider.bounds.size;
-        Movement.Extents = Collider.bounds.extents;
-        Movement.Velocity = Rigidbody.velocity;
+        var jumpDown = Input.GetButtonDown("Jump");
+        var jumpHold = Input.GetButton("Jump");
+        var jumpUp = Input.GetButtonUp("Jump");
+        var dashDown = Input.GetAxis("Dash") > 0;
 
-        Movement.HandleMovement();
+        Movement.StartUpdate(Rigidbody.velocity, Collider.bounds.center, Collider.bounds.size); 
+        {
+            Movement.Dash(dashDown);
+            Movement.Jump(jumpDown, jumpHold, jumpUp);
+        }
+        Movement.EndUpdate();
 
         Rigidbody.velocity = Movement.Velocity;
     }

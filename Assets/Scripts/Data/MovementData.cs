@@ -2,64 +2,51 @@ using UnityEngine;
 
 [CreateAssetMenu(fileName = "MovementData", menuName = "Daggermoon/MovementData", order = 0)]
 public class MovementData : ScriptableObject {
-    [HideInInspector]
-    public Vector2 Velocity = Vector2.zero;
-    [HideInInspector]
-    public Vector2 Position = Vector2.zero;
-    [HideInInspector]
-    public Vector2 Size = Vector2.zero;
-    [HideInInspector]
-    public Vector2 Extents = Vector2.zero;
+    [Header("Movement")]
     public float MoveSpeed = 5.5f;
-    public LayerMask GroundLayer;
-    public float JumpRange = 2.0f;
+    public float JumpRange = 2.6f;
     public float DashRange = 3.0f;
-    public float MaxJumpTime = 0.25f;
-    public float DashTime = 0.1f;
-    public float DashCooldown = 1f;
-    public float CoyoteTime = 0.1f;
+    [Header("Timings")]
+    public float JumpTime = 0.25f;
+    public float DashTime = 0.3f;
+    [Header("Cooldowns and Buffers")]
+    public float DashCooldown = 1.0f;
+    public float CoyoteTime = 0.06f;
+    [Header("Checks")]
+    public LayerMask GroundLayer;
 
-    private Vector2 Direction = Vector2.right;
-    private bool IsJumping = false;
-    private bool PreviousGroundCheck = false;
-    private bool CurrentGroundCheck = false;
-    private bool IsDashing = false;
-    // Timers
-    private float CurrentJumpTime = 0.0f;
-    private float CurrentDashTime = 0.0f;
-    private float CurrentDashCooldown = 0.0f;
-    private float CurrentCoyoteTime = 0.0f;
-    // Constants
-    public const float GroundCheckSize = 0.05f;
+    internal bool IsJumping;
+    internal bool IsDashing;
+    internal bool IsMoving;
+    internal bool IsLocked => IsDashing;
+    internal bool IsGrounded => CurrentGroundCheck != null;
+    internal bool IsCoyoteTime => CurrentCoyoteTime <= CoyoteTime;
+    internal float CurrentJumpTime;
+    internal float CurrentDashTime;
+    internal float CurrentDashCooldown;
+    internal float CurrentCoyoteTime;
+    internal Vector2 Velocity;
+    internal Vector2 Position;
+    internal Vector2 Size;
+    internal Vector2 Direction = Vector2.right;
+    internal Collider2D PreviousGroundCheck;
+    internal Collider2D CurrentGroundCheck;
+    internal const float GroundCheckSize = 0.05f;
 
-    public bool IsLocked() {
-        return IsDashing;
-    }
-
-    public void HandleMovement() {
-        UpdateGroundCheck();
-        CurrentDashCooldown += Time.deltaTime;
-
-        if(IsLocked()) {
-            UpdateDash();
-        } else {
-            HandleHorizontalMovement();
-            HandleJump();
-            HandleDash();
-        }
-        PreviousGroundCheck = CurrentGroundCheck;
-    }
-
-    public void HandleDash() {
-        var dashDown = Input.GetAxis("Dash") > 0;
-        if(dashDown && CurrentDashCooldown > DashCooldown) {
-            CurrentDashTime = 0;
-            IsDashing = true;
-            CurrentDashCooldown = 0;
+    public void Move(float axisInput) {
+        if(!IsLocked) {
+            if(axisInput != 0) {
+                Direction = Vector2.right * Mathf.Sign(axisInput);
+                Velocity.x = axisInput * MoveSpeed;
+                IsMoving = true;
+            } else {
+                Velocity.x = 0;
+                IsMoving = false;
+            }
         }
     }
 
-    public void UpdateDash() {
+    public void Dash(bool dashDown) {
         if(IsDashing) {
             if(CurrentDashTime < DashTime) {
                 Velocity.x = DashRange * Direction.x / DashTime;
@@ -69,65 +56,59 @@ public class MovementData : ScriptableObject {
                 Velocity.x = 0;
                 IsDashing = false;
             }
-        }
-    }
-
-    public void HandleHorizontalMovement() {
-        var horizontalInput = Input.GetAxisRaw("Horizontal");
-
-        if(horizontalInput != 0) {
-            Direction = Vector2.right * Mathf.Sign(horizontalInput);
-            Velocity.x = horizontalInput * MoveSpeed;
         } else {
-            Velocity.x = 0;
-        }
-    }
-
-    public void HandleJump() {
-        var jumpDown = Input.GetButtonDown("Jump");
-        var jumpHold = Input.GetButton("Jump");
-        var jumpUp = Input.GetButtonUp("Jump");
-
-        CheckCoyoteTime();
-        if((IsGrounded() || IsCoyoteTime()) && jumpDown) {
-            Velocity.y = JumpRange / MaxJumpTime;
-            IsJumping = true;
-            CurrentJumpTime = 0;
-        }
-        
-        if(jumpHold && IsJumping) {
-            if(CurrentJumpTime < MaxJumpTime) {
-                Velocity.y = JumpRange / MaxJumpTime;
-                CurrentJumpTime += Time.deltaTime;
-            } else {
-                IsJumping = false;
+            if(dashDown && CurrentDashCooldown > DashCooldown) {
+                CurrentDashTime = 0;
+                CurrentDashCooldown = 0;
+                IsDashing = true;
             }
         }
-
-        if(jumpUp) {
-            IsJumping = false;
-        }  
     }
 
-    void CheckCoyoteTime() {
-        if(!IsJumping && !IsDashing && PreviousGroundCheck && !CurrentGroundCheck) {
-            CurrentCoyoteTime = 0;
-        } else {
-            CurrentCoyoteTime += Time.deltaTime;
+    public void Jump(bool jumpDown, bool jumpHold, bool jumpUp) {
+        if(!IsLocked) {
+            if(IsJumping) {
+                if(jumpHold && CurrentJumpTime < JumpTime) {
+                    Velocity.y = JumpRange / JumpTime;
+                    CurrentJumpTime += Time.deltaTime;
+                } else {
+                    IsJumping = false;
+                }
+            } else if(jumpDown && (IsGrounded || IsCoyoteTime)) {
+                Velocity.y = JumpRange / JumpTime;
+                IsJumping = true;
+                CurrentJumpTime = 0;
+            }
         }
     }
 
-    bool IsCoyoteTime() {
-        return CurrentCoyoteTime <= CoyoteTime; 
+    public void StartCoyoteTime() {
+        if(!IsJumping && !IsDashing && PreviousGroundCheck && !CurrentGroundCheck) {
+            CurrentCoyoteTime = 0;
+        }
     }
 
-    bool IsGrounded() {
-        return CurrentGroundCheck;
-    }
-    
-    void UpdateGroundCheck() {
+    public void StartUpdate(Vector2 velocity, Vector2 position, Vector2 size) {
+        Velocity = velocity;
+        Position = position;
+        Size = size;
+
         var groundCheck = Physics2D.BoxCast(Position, Size, 0f, Vector2.down, GroundCheckSize, GroundLayer);
-
-        CurrentGroundCheck = groundCheck.collider != null;
+        CurrentGroundCheck = groundCheck.collider;
+        StartCoyoteTime();
     }
+
+    public void EndUpdate() {
+        CurrentDashCooldown += Time.deltaTime;
+        CurrentCoyoteTime += Time.deltaTime;
+        PreviousGroundCheck = CurrentGroundCheck;
+    }
+
+    public void StartFixedUpdate(Vector2 velocity, Vector2 position, Vector2 size) {
+        Velocity = velocity;
+        Position = position;
+        Size = size;
+    }
+
+    public void EndFixedUpdate() { }
 }

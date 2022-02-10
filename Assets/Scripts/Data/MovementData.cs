@@ -66,19 +66,18 @@ public class MovementData : ScriptableObject {
     }
 
     public void Jump(bool jumpDown, bool jumpHold, bool jumpUp) {
-        if(!IsLocked) {
-            if(IsJumping) {
-                if(jumpHold && CurrentJumpTime < JumpTime) {
-                    Velocity.y = JumpRange / JumpTime;
-                    CurrentJumpTime += Time.deltaTime;
-                } else {
-                    IsJumping = false;
-                }
-            } else if(jumpDown && (IsGrounded || IsCoyoteTime)) {
+        if(IsJumping) {
+            if(jumpHold && CurrentJumpTime < JumpTime) {
                 Velocity.y = JumpRange / JumpTime;
-                IsJumping = true;
-                CurrentJumpTime = 0;
+                CurrentJumpTime += Time.deltaTime;
+            } else {
+                IsJumping = false;
             }
+        } else if(jumpDown && (IsGrounded || IsCoyoteTime)) {
+            Velocity.y = JumpRange / JumpTime;
+            IsJumping = true;
+            CurrentJumpTime = 0;
+            IsDashing = false;
         }
     }
 
